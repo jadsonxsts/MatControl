@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "updatedAt": "2026-09-02T22:21:34.251Z",
+  "records": {
+    "2026-08-20": [
+      {
+        "id": "79c9147b-9859-452f-be55-ad78b025cf01",
+        "maq": "TORNO CNC 01",
+        "mat": "Aço 1045",
+        "diam": "50mm",
+        "loc": "Galpão A",
+        "obs": "Usinagem de engrenagem",
+        "carregada": true,
+        "origemId": null,
+        "origemData": null,
+        "transferido": false,
+        "createdAt": "2026-08-28T17:51:06.658Z",
+        "updatedAt": "2026-08-28T17:51:06.658Z"
+      },
+      {
+        "id": "0af3a77b-4389-4520-b19a-42996872ed6b",
+        "maq": "FRESA 02",
+        "mat": "Alumínio 6061",
+        "diam": "30mm",
+        "loc": "Galpão B",
+        "obs": "Aguardando lote",
+        "carregada": false,
+        "origemId": null,
+        "origemData": null,
+        "transferido": false,
+        "createdAt": "2026-08-28T17:51:06.660Z",
+        "updatedAt": "2026-08-28T17:51:06.660Z"
+      },
+      {
+        "id": "20cb255a-5490-48a4-99e4-818145761f21",
+        "maq": "TORNO CNC 01",
+        "mat": "Aço 1045",
+        "tipoMat": "Melhorada",
+        "diam": "50mm",
+        "loc": "Galpão A",
+        "obs": "Usinagem de engrenagem",
+        "tirada": false,
+        "encostada": false,
+        "carregada": true,
+        "origemId": null,
+        "origemData": null,
+        "transferido": false,
+        "createdAt": "2026-09-02T22:21:34.238Z",
+        "updatedAt": "2026-09-02T22:21:34.238Z"
+      },
+      {
+        "id": "82b0df92-8c48-4d21-9f96-9068c49f4fc1",
+        "maq": "FRESA 02",
+        "mat": "Alumínio 6061",
+        "tipoMat": "Melhorada",
+        "diam": "30mm",
+        "loc": "Galpão B",
+        "obs": "Aguardando lote",
+        "tirada": false,
+        "encostada": false,
+        "carregada": false,
+        "origemId": null,
+        "origemData": null,
+        "transferido": false,
+        "createdAt": "2026-09-02T22:21:34.241Z",
+        "updatedAt": "2026-09-02T22:21:34.241Z"
+      }
+    ],
+    "2026-08-21": [
+      {
+        "id": "48fb3b5d-03bd-4d6b-9231-1bbb1f64b590",
+        "maq": "FRESA 02",
+        "mat": "Alumínio 6061",
+        "diam": "30mm",
+        "loc": "Galpão B",
+        "obs": "Aguardando lote",
+        "carregada": true,
+        "origemId": "0af3a77b-4389-4520-b19a-42996872ed6b",
+        "origemData": "2026-08-20",
+        "transferido": true,
+        "createdAt": "2026-08-28T17:51:06.664Z",
+        "updatedAt": "2026-09-02T22:21:34.251Z"
+      }
+    ],
+    "2026-08-28": [
+      {
+        "id": "d0b9015e-6d05-45a8-97b2-d32810d50cf7",
+        "maq": "FRESA INDUSTRIAL 02",
+        "mat": "ALUMÍNIO 6061-T6",
+        "diam": "Ø 75mm",
+        "loc": "GALPÃO B - BANCADA 4",
+        "obs": "Aguardando liberação do lote de barras. Não carregada.",
+        "carregada": true,
+        "origemId": "seed-2",
+        "origemData": "2026-08-27",
+        "transferido": true,
+        "createdAt": "2026-08-28T17:52:44.883Z",
+        "updatedAt": "2026-08-28T18:26:12.882Z",
+        "tirada": true,
+        "encostada": true
+      },
+      {
+        "id": "8ecf666f-3b31-4ae3-8b08-1b60fea578c8",
+        "maq": "SERRA DE FITA 03",
+        "mat": "AÇO 1045 TREFILADO",
+        "diam": "Ø 120mm",
+        "loc": "ALMOXARIFADO CENTRAL",
+        "obs": "Falta de operador na tarde. Ficou pendente.",
+        "carregada": false,
+        "origemId": "seed-3",
+        "origemData": "2026-08-27",
+        "transferido": true,
+        "createdAt": "2026-08-28T17:52:44.883Z",
+        "updatedAt": "2026-08-28T17:56:44.972Z",
+        "tirada": true,
+        "encostada": true
+      },
+      {
+        "id": "d3d1bfdd-0ce9-4230-ac5f-372f121918d7",
+        "maq": "CENTRO DE USINAGEM 05",
+        "mat": "AÇO D2 TEMPERADO",
+        "tipoMat": "Melhorada+",
+        "diam": "Ø 80mm",
+        "loc": "GALPÃO C",
+        "obs": "Matéria com tratamento especial",
+        "tirada": true,
+        "encostada": true,
+        "carregada": false,
+        "origemId": null,
+        "origemData": null,
+        "transferido": false,
+        "createdAt": "2026-08-28T18:23:13.894Z",
+        "updatedAt": "2026-08-28T18:23:13.894Z"
+      }
+    ],
+    "2026-08-27": [
+      {
+        "id": "seed-1",
+        "maq": "TORNO CNC 01",
+        "mat": "AÇO INOX 304",
+        "tipoMat": "Melhorada+",
+        "diam": "Ø 50mm",
+        "loc": "GALPÃO A - SETOR 2",
+        "obs": "Tudo concluído e carregado.",
+        "tirada": true,
+        "encostada": true,
+        "carregada": true,
+        "origemId": null,
+        "origemData": null,
+        "transferido": false,
+        "createdAt": "2026-08-28T18:04:05.434Z",
+        "updatedAt": "2026-08-28T18:04:05.434Z"
+      },
+      {
+        "id": "seed-2",
+        "maq": "FRESA INDUSTRIAL 02",
+        "mat": "ALUMÍNIO 6061-T6",
+        "tipoMat": "Melhorada",
+        "diam": "Ø 75mm",
+        "loc": "GALPÃO B - BANCADA 4",
+        "obs": "Matéria já está encostada na máquina, aguardando término de setup.",
+        "tirada": true,
+        "encostada": true,
+        "carregada": false,
+        "origemId": null,
+        "origemData": null,
+        "transferido": false,
+        "createdAt": "2026-08-28T18:04:05.434Z",
+        "updatedAt": "2026-08-28T18:04:05.434Z"
+      },
+      {
+        "id": "seed-3",
+        "maq": "SERRA DE FITA 03",
+        "mat": "AÇO 1045 TREFILADO",
+        "tipoMat": "Melhorada+",
+        "diam": "Ø 120mm",
+        "loc": "ALMOXARIFADO CENTRAL",
+        "obs": "Matéria foi tirada do almoxarifado, aguardando transporte.",
+        "tirada": true,
+        "encostada": false,
+        "carregada": false,
+        "origemId": null,
+        "origemData": null,
+        "transferido": false,
+        "createdAt": "2026-08-28T18:04:05.434Z",
+        "updatedAt": "2026-08-28T18:04:05.434Z"
+      }
+    ]
+  },
+  "settings": {
+    "autoRollover": true
+  }
+}

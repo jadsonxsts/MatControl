@@ -1,0 +1,146 @@
+/* Custom styles and print optimizations */
+
+/* Hide scrollbar for clean horizontal filter scrolling on mobile */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom scrollbars for desktop */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.8);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 1);
+}
+
+/* Row & Card animations */
+.table-row-item, .mobile-machine-card {
+  transition: all 0.2s ease-in-out;
+}
+
+.table-row-item:hover {
+  background-color: rgba(30, 41, 59, 0.7);
+}
+
+.table-row-item.is-carregada, .mobile-machine-card.is-carregada {
+  border-left: 3px solid #14b8a6;
+}
+
+.table-row-item.is-pendente, .mobile-machine-card.is-pendente {
+  border-left: 3px solid #f59e0b;
+}
+
+/* Badges for Material Type */
+.badge-melhorada {
+  background: rgba(168, 85, 247, 0.15);
+  color: #d8b4fe;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
+.badge-melhorada-plus {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(234, 179, 8, 0.15));
+  color: #fde047;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.15);
+}
+
+/* Radio buttons selector in modal */
+.tipo-radio-label:has(input:checked) {
+  outline: 2px solid #14b8a6;
+  outline-offset: 1px;
+}
+
+/* Toast styling */
+.toast-msg {
+  animation: slideInRight 0.3s ease forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slideUp {
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Touch-friendly buttons on mobile */
+@media (max-width: 640px) {
+  button, input, select {
+    min-height: 38px;
+  }
+  
+  .filter-btn {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+}
+
+/* Print layout optimizations */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  header, footer, #rolloverNotice, .filter-btn, #searchInput, #btnExportMenu, #btnOpenHistory, #btnOpenAddModal, #btnQuickRollover, #btnSeedDemo, .actions-col, #toastContainer, #mobileCardsContainer {
+    display: none !important;
+  }
+
+  .hidden.md\\:block, table {
+    display: block !important;
+  }
+
+  .bg-slate-900, .bg-slate-800, .bg-slate-950 {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border-color: #cccccc !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    color: #000000 !important;
+    border: 1px solid #ddd !important;
+    padding: 8px !important;
+  }
+
+  th {
+    background-color: #f1f5f9 !important;
+  }
+}
