@@ -39,7 +39,21 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_records_data ON records(data_registro);
     `;
 
-    console.log('✅ Conexão estabelecida com Neon e tabelas prontas!');
+    // Tabela para registrar itens deletados/descartados do rollover
+    await sql`
+      CREATE TABLE IF NOT EXISTS dismissed_rollovers (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        data_registro VARCHAR(10) NOT NULL,
+        origem_id UUID,
+        maq VARCHAR(255),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `;
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_dismissed_data ON dismissed_rollovers(data_registro);
+    `;
+
   } catch (err) {
     console.error('❌ Erro ao inicializar Neon:', err);
     throw err;

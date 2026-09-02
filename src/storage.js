@@ -78,6 +78,12 @@ async function getDayRecords(dateStr, performRollover = true) {
 async function applyAutoRollover(targetDate) {
   const prevDate = getPreviousDate(targetDate);
 
+  // Busca itens que foram explicitamente deletados/descartados nesta data
+  const dismissedRows = await sql`
+    SELECT origem_id, maq FROM dismissed_rollovers 
+    WHERE data_registro = ${targetDate}
+  `;
+
   // Busca máquinas não carregadas do dia anterior
   const pendingRows = await sql`
     SELECT * FROM records 
@@ -95,6 +101,16 @@ async function applyAutoRollover(targetDate) {
   let added = 0;
 
   for (const pending of pendingRows) {
+    // 1. Verifica se já foi descartado/deletado pelo usuário nesta data
+    const wasDismissed = dismissedRows.some(d => 
+      (d.origem_id && d.origem_id === pending.id) ||
+      (d.maq && d.maq.toUpperCase() === (pending.maq || '').toUpperCase())
+    );
+    if (wasDismissed) {
+      continue;
+    }
+
+    // 2. Verifica se já existe na data atual
     const alreadyExists = currentRows.some(r => 
       (r.origem_id && r.origem_id === pending.id) ||
       (r.origem_data === prevDate && r.maq === pending.maq)
@@ -124,6 +140,9 @@ async function applyAutoRollover(targetDate) {
  */
 async function manualRollover(sourceDate, targetDate) {
   await initDB();
+
+  // Ao puxar manualmente, limpa os descartados para permitir repuxar
+  await sql`DELETE FROM dismissed_rollovers WHERE data_registro = ${targetDate}`;
 
   const pendingRows = await sql`
     SELECT * FROM records 
@@ -242,13 +261,28 @@ async function updateRecord(dateStr, id, updates) {
 async function deleteRecord(dateStr, id) {
   await initDB();
 
+  // 1. Busca os dados do registro antes de deletar
+  const existing = await sql`
+    SELECT id, data_registro, maq, origem_id FROM records WHERE id = ${id}
+  `;
+
+  if (existing.length === 0) {
+    throw new Error('Registro não encontrado para exclusão');
+  }
+
+  const item = existing[0];
+
+  // 2. Registra na tabela de descartados para não reaparecer no rollover automático
+  const targetOrigemId = item.origem_id || item.id;
+  await sql`
+    INSERT INTO dismissed_rollovers (data_registro, origem_id, maq)
+    VALUES (${dateStr}, ${targetOrigemId}, ${item.maq})
+  `;
+
+  // 3. Deleta da tabela records
   const rows = await sql`
     DELETE FROM records WHERE id = ${id} RETURNING id
   `;
-
-  if (rows.length === 0) {
-    throw new Error('Registro não encontrado para exclusão');
-  }
 
   return { success: true, id };
 }
