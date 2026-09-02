@@ -2,7 +2,7 @@
  * Controle de Matéria & Máquinas - Frontend Logic
  * Fluxo em 3 Etapas: Tirada -> Encostada -> Carregada
  * Tipos de Matéria: Melhorada e Melhorada+
- * Adaptado para Desktops, Tablets e Smartphones
+ * Autenticação por Código de Operador (sem senha)
  */
 
 // Estado Global da Aplicação
@@ -12,7 +12,8 @@ const state = {
   summary: {},
   filter: 'all', // 'all', 'melhorada', 'melhorada_plus', 'tiradas', 'encostadas', 'carregadas', 'pendentes'
   searchQuery: '',
-  allDates: []
+  allDates: [],
+  operatorCode: localStorage.getItem('matcontrol_operator_code') || ''
 };
 
 // Formata data atual em YYYY-MM-DD (local)
@@ -34,11 +35,72 @@ function formatDateBR(dateStr) {
 // Inicialização ao carregar a página
 document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
+  checkOperatorLogin();
   setDate(getTodayDateString());
 });
 
+// Gerenciamento de Login do Operador
+function checkOperatorLogin() {
+  const savedOperator = localStorage.getItem('matcontrol_operator_code');
+  if (savedOperator && savedOperator.trim()) {
+    setOperator(savedOperator.trim().toUpperCase());
+  } else {
+    openLoginModal();
+  }
+}
+
+function setOperator(code) {
+  state.operatorCode = code.trim().toUpperCase();
+  localStorage.setItem('matcontrol_operator_code', state.operatorCode);
+  
+  const displayEl = document.getElementById('currentOperatorDisplay');
+  if (displayEl) {
+    displayEl.textContent = state.operatorCode;
+  }
+}
+
+function openLoginModal() {
+  const modal = document.getElementById('loginModal');
+  const input = document.getElementById('inputOperatorCode');
+  input.value = state.operatorCode || '';
+  modal.classList.remove('hidden');
+  setTimeout(() => input.focus(), 150);
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeLoginModal() {
+  document.getElementById('loginModal').classList.add('hidden');
+}
+
+// Helper para headers autenticados com o código do operador
+function getAuthHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'x-operator-code': state.operatorCode || 'ANÔNIMO'
+  };
+}
+
 // Configuração de ouvintes de eventos
 function setupEventListeners() {
+  // Login Form
+  document.getElementById('loginForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const code = document.getElementById('inputOperatorCode').value.trim();
+    if (!code) {
+      showToast('Digite seu código de operador', 'error');
+      return;
+    }
+    setOperator(code);
+    closeLoginModal();
+    showToast(`Bem-vindo, Operador ${state.operatorCode}!`, 'success');
+    loadRecords();
+  });
+
+  // Botão Trocar Operador no Topo
+  document.getElementById('btnChangeOperator').addEventListener('click', () => {
+    openLoginModal();
+  });
+
   // Navegação de Datas
   const dateInput = document.getElementById('selectedDate');
   dateInput.value = state.currentDate;
@@ -117,9 +179,6 @@ function setupEventListeners() {
 
   // Ações Especiais
   document.getElementById('btnQuickRollover').addEventListener('click', handleQuickRollover);
-  document.getElementById('btnSeedDemo').addEventListener('click', handleSeedDemo);
-  const btnSeedEmpty = document.getElementById('btnSeedEmpty');
-  if (btnSeedEmpty) btnSeedEmpty.addEventListener('click', handleSeedDemo);
 
   document.getElementById('btnDismissNotice').addEventListener('click', () => {
     document.getElementById('rolloverNotice').classList.add('hidden');
@@ -172,7 +231,9 @@ async function setDate(dateStr) {
 // Busca registros da API para a data atual
 async function loadRecords() {
   try {
-    const res = await fetch(`/api/records?date=${state.currentDate}`);
+    const res = await fetch(`/api/records?date=${state.currentDate}`, {
+      headers: getAuthHeaders()
+    });
     const data = await res.json();
 
     if (data.success) {
@@ -270,7 +331,6 @@ function checkRolloverNotice(data) {
 // Filtra registros baseado no estado atual
 function getFilteredRecords() {
   return state.records.filter(record => {
-    // Filtro de abas
     if (state.filter === 'melhorada' && (record.tipoMat || 'Melhorada') !== 'Melhorada') return false;
     if (state.filter === 'melhorada_plus' && record.tipoMat !== 'Melhorada+') return false;
     if (state.filter === 'tiradas' && !record.tirada) return false;
@@ -278,7 +338,6 @@ function getFilteredRecords() {
     if (state.filter === 'carregadas' && !record.carregada) return false;
     if (state.filter === 'pendentes' && record.carregada) return false;
 
-    // Filtro de busca textual
     if (state.searchQuery) {
       const q = state.searchQuery;
       const matchMaq = (record.maq || '').toLowerCase().includes(q);
@@ -287,7 +346,9 @@ function getFilteredRecords() {
       const matchDiam = (record.diam || '').toLowerCase().includes(q);
       const matchLoc = (record.loc || '').toLowerCase().includes(q);
       const matchObs = (record.obs || '').toLowerCase().includes(q);
-      return matchMaq || matchMat || matchTipo || matchDiam || matchLoc || matchObs;
+      const matchCriador = (record.criadoPor || '').toLowerCase().includes(q);
+      const matchAtualizador = (record.atualizadoPor || '').toLowerCase().includes(q);
+      return matchMaq || matchMat || matchTipo || matchDiam || matchLoc || matchObs || matchCriador || matchAtualizador;
     }
 
     return true;
@@ -346,15 +407,16 @@ function renderDesktopTable(filtered) {
       : 'bg-slate-800 text-slate-500 border-slate-700 hover:border-slate-600 hover:text-slate-400';
 
     tr.innerHTML = `
-      <!-- Coluna: 3 Etapas Dinâmicas com 1 Clique -->
+      <!-- Coluna: 3 Etapas Dinâmicas com 1 Clique e Operador -->
       <td class="py-3 px-3">
         <div class="flex items-center justify-center gap-1.5">
           <button 
             onclick="updateRecordStatus('${record.id}', 'tirada', ${!record.tirada})"
             class="px-2.5 py-1 rounded-lg text-xs font-bold border transition flex items-center gap-1 ${tiradaBtnClass}"
-            title="1. Matéria Tirada do Estoque">
+            title="${record.tiradaPor ? `Tirada por Operador: ${record.tiradaPor}` : '1. Matéria Tirada do Estoque'}">
             <i data-lucide="${record.tirada ? 'check' : 'package'}" class="w-3.5 h-3.5"></i>
             <span>1. Tirada</span>
+            ${record.tiradaPor ? `<span class="text-[9px] font-normal opacity-80">(${escapeHtml(record.tiradaPor)})</span>` : ''}
           </button>
 
           <i data-lucide="chevron-right" class="w-3 h-3 text-slate-600"></i>
@@ -362,9 +424,10 @@ function renderDesktopTable(filtered) {
           <button 
             onclick="updateRecordStatus('${record.id}', 'encostada', ${!record.encostada})"
             class="px-2.5 py-1 rounded-lg text-xs font-bold border transition flex items-center gap-1 ${encostadaBtnClass}"
-            title="2. Matéria Encostada na Máquina">
+            title="${record.encostadaPor ? `Encostada por Operador: ${record.encostadaPor}` : '2. Matéria Encostada na Máquina'}">
             <i data-lucide="${record.encostada ? 'check' : 'truck'}" class="w-3.5 h-3.5"></i>
             <span>2. Encostada</span>
+            ${record.encostadaPor ? `<span class="text-[9px] font-normal opacity-80">(${escapeHtml(record.encostadaPor)})</span>` : ''}
           </button>
 
           <i data-lucide="chevron-right" class="w-3 h-3 text-slate-600"></i>
@@ -372,9 +435,10 @@ function renderDesktopTable(filtered) {
           <button 
             onclick="updateRecordStatus('${record.id}', 'carregada', ${!record.carregada})"
             class="px-2.5 py-1 rounded-lg text-xs font-bold border transition flex items-center gap-1 ${carregadaBtnClass}"
-            title="3. Máquina Carregada">
+            title="${record.carregadaPor ? `Carregada por Operador: ${record.carregadaPor}` : '3. Máquina Carregada'}">
             <i data-lucide="${record.carregada ? 'check-circle-2' : 'circle'}" class="w-3.5 h-3.5"></i>
             <span>3. Carregada</span>
+            ${record.carregadaPor ? `<span class="text-[9px] font-normal opacity-80">(${escapeHtml(record.carregadaPor)})</span>` : ''}
           </button>
         </div>
       </td>
@@ -414,11 +478,17 @@ function renderDesktopTable(filtered) {
         </div>
       </td>
 
-      <!-- OBS (Observações) -->
+      <!-- OBS / Histórico de Operadores -->
       <td class="py-3 px-4 max-w-xs">
-        <p class="text-xs text-slate-400 truncate" title="${escapeHtml(record.obs || '')}">
-          ${escapeHtml(record.obs || '-')}
-        </p>
+        <div class="flex flex-col gap-0.5">
+          <p class="text-xs text-slate-300 truncate" title="${escapeHtml(record.obs || '')}">
+            ${escapeHtml(record.obs || '-')}
+          </p>
+          <div class="flex items-center gap-1.5 text-[10px] text-slate-500">
+            <i data-lucide="user" class="w-3 h-3"></i>
+            <span>Op: <b class="text-slate-400">${escapeHtml(record.atualizadoPor || record.criadoPor || 'SISTEMA')}</b></span>
+          </div>
+        </div>
       </td>
 
       <!-- Ações -->
@@ -453,7 +523,6 @@ function renderMobileCards(filtered) {
       </span>
     ` : '';
 
-    // Botões de Status Mobile
     const tiradaBtnClass = record.tirada 
       ? 'bg-sky-500/20 text-sky-300 border-sky-500/60 shadow-sm font-bold' 
       : 'bg-slate-800/80 text-slate-500 border-slate-700 font-medium';
@@ -510,7 +579,13 @@ function renderMobileCards(filtered) {
         </div>
       ` : ''}
 
-      <!-- Botões de Etapas Touch-Friendly (Grandes para Celular) -->
+      <!-- Última movimentação -->
+      <div class="text-[10px] text-slate-500 flex items-center justify-between px-1">
+        <span>Última ação: <b class="text-slate-400">${escapeHtml(record.atualizadoPor || record.criadoPor || 'SISTEMA')}</b></span>
+        ${record.carregadaPor ? `<span class="text-teal-400 font-semibold">Carregada por ${escapeHtml(record.carregadaPor)}</span>` : ''}
+      </div>
+
+      <!-- Botões de Etapas Touch-Friendly com Operador -->
       <div class="pt-1">
         <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5 text-center">Toque para definir o status</p>
         <div class="grid grid-cols-3 gap-1.5">
@@ -520,6 +595,7 @@ function renderMobileCards(filtered) {
             class="py-2.5 px-1 rounded-xl text-xs border transition flex flex-col items-center justify-center gap-1 ${tiradaBtnClass}">
             <i data-lucide="${record.tirada ? 'check' : 'package'}" class="w-4 h-4"></i>
             <span class="text-[11px]">1. Tirada</span>
+            ${record.tiradaPor ? `<span class="text-[9px] font-normal opacity-80">${escapeHtml(record.tiradaPor)}</span>` : ''}
           </button>
 
           <button 
@@ -527,6 +603,7 @@ function renderMobileCards(filtered) {
             class="py-2.5 px-1 rounded-xl text-xs border transition flex flex-col items-center justify-center gap-1 ${encostadaBtnClass}">
             <i data-lucide="${record.encostada ? 'check' : 'truck'}" class="w-4 h-4"></i>
             <span class="text-[11px]">2. Encostada</span>
+            ${record.encostadaPor ? `<span class="text-[9px] font-normal opacity-80">${escapeHtml(record.encostadaPor)}</span>` : ''}
           </button>
 
           <button 
@@ -534,6 +611,7 @@ function renderMobileCards(filtered) {
             class="py-2.5 px-1 rounded-xl text-xs border transition flex flex-col items-center justify-center gap-1 ${carregadaBtnClass}">
             <i data-lucide="${record.carregada ? 'check-circle-2' : 'circle'}" class="w-4 h-4"></i>
             <span class="text-[11px]">3. Carregada</span>
+            ${record.carregadaPor ? `<span class="text-[9px] font-normal opacity-80">${escapeHtml(record.carregadaPor)}</span>` : ''}
           </button>
 
         </div>
@@ -544,12 +622,17 @@ function renderMobileCards(filtered) {
   });
 }
 
-// Atualizar status individual (tirada, encostada, carregada) com 1 clique
+// Atualizar status individual (tirada, encostada, carregada) gravando o operador
 async function updateRecordStatus(id, field, value) {
+  if (!state.operatorCode) {
+    openLoginModal();
+    return;
+  }
+
   try {
     const res = await fetch(`/api/records/${id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         date: state.currentDate,
         field,
@@ -567,9 +650,9 @@ async function updateRecordStatus(id, field, value) {
       renderAllViews();
 
       const labels = {
-        tirada: value ? 'Matéria marcada como TIRADA do estoque.' : 'Status de Tirada desmarcado.',
-        encostada: value ? 'Matéria marcada como ENCOSTADA na máquina.' : 'Status de Encostada desmarcado.',
-        carregada: value ? 'Máquina marcada como CARREGADA (Concluído).' : 'Máquina marcada como PENDENTE.'
+        tirada: value ? `TIRADA registrada por ${state.operatorCode}` : 'Status de Tirada desmarcado',
+        encostada: value ? `ENCOSTADA registrada por ${state.operatorCode}` : 'Status de Encostada desmarcado',
+        carregada: value ? `CARREGADA registrada por ${state.operatorCode} (OK)` : 'Máquina marcada como Pendente'
       };
       showToast(labels[field] || 'Status atualizado!', 'info');
     } else {
@@ -585,12 +668,16 @@ async function updateRecordStatus(id, field, value) {
 
 // Abrir modal para adicionar máquina
 function openAddModal() {
+  if (!state.operatorCode) {
+    openLoginModal();
+    return;
+  }
+
   document.getElementById('formRecordId').value = '';
   document.getElementById('modalTitle').textContent = 'Adicionar Nova Máquina';
   document.getElementById('btnSubmitText').textContent = 'Salvar Registro';
   document.getElementById('machineForm').reset();
   
-  // Define radio Melhorada padrão
   const radioMelhorada = document.querySelector('input[name="tipoMat"][value="Melhorada"]');
   if (radioMelhorada) radioMelhorada.checked = true;
 
@@ -605,6 +692,11 @@ function openAddModal() {
 
 // Abrir modal para editar máquina
 function openEditModal(id) {
+  if (!state.operatorCode) {
+    openLoginModal();
+    return;
+  }
+
   const record = state.records.find(r => r.id === id);
   if (!record) return;
 
@@ -618,7 +710,6 @@ function openEditModal(id) {
   document.getElementById('formLoc').value = record.loc || '';
   document.getElementById('formObs').value = record.obs || '';
 
-  // Seleciona Tipo de Matéria
   const tipo = record.tipoMat || 'Melhorada';
   const radio = document.querySelector(`input[name="tipoMat"][value="${tipo}"]`) || document.querySelector('input[name="tipoMat"][value="Melhorada"]');
   if (radio) radio.checked = true;
@@ -632,7 +723,6 @@ function openEditModal(id) {
   if (window.lucide) lucide.createIcons();
 }
 
-// Fechar modal
 function closeModal() {
   document.getElementById('machineModal').classList.add('hidden');
 }
@@ -640,6 +730,11 @@ function closeModal() {
 // Salvar / Submeter formulário
 async function handleFormSubmit(e) {
   e.preventDefault();
+
+  if (!state.operatorCode) {
+    openLoginModal();
+    return;
+  }
 
   const id = document.getElementById('formRecordId').value;
   const maq = document.getElementById('formMaq').value.trim();
@@ -673,17 +768,15 @@ async function handleFormSubmit(e) {
   try {
     let res;
     if (id) {
-      // Edição
       res = await fetch(`/api/records/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
     } else {
-      // Criação
       res = await fetch('/api/records', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
     }
@@ -691,7 +784,7 @@ async function handleFormSubmit(e) {
     const data = await res.json();
     if (data.success) {
       closeModal();
-      showToast(id ? 'Máquina atualizada com sucesso!' : 'Máquina adicionada com sucesso!', 'success');
+      showToast(id ? 'Máquina atualizada!' : 'Máquina cadastrada com sucesso!', 'success');
       loadRecords();
     } else {
       showToast(data.error || 'Erro ao salvar', 'error');
@@ -704,13 +797,19 @@ async function handleFormSubmit(e) {
 
 // Excluir registro
 async function deleteRecord(id, maqName) {
+  if (!state.operatorCode) {
+    openLoginModal();
+    return;
+  }
+
   if (!confirm(`Deseja realmente remover a máquina "${maqName}" do dia ${formatDateBR(state.currentDate)}?`)) {
     return;
   }
 
   try {
     const res = await fetch(`/api/records/${id}?date=${state.currentDate}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders()
     });
 
     const data = await res.json();
@@ -728,6 +827,11 @@ async function deleteRecord(id, maqName) {
 
 // Forçar puxada de pendências do dia anterior
 async function handleQuickRollover() {
+  if (!state.operatorCode) {
+    openLoginModal();
+    return;
+  }
+
   const [y, m, d] = state.currentDate.split('-').map(Number);
   const prev = new Date(Date.UTC(y, m - 1, d));
   prev.setUTCDate(prev.getUTCDate() - 1);
@@ -736,7 +840,7 @@ async function handleQuickRollover() {
   try {
     const res = await fetch('/api/rollover', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         sourceDate: prevDate,
         targetDate: state.currentDate
@@ -746,9 +850,9 @@ async function handleQuickRollover() {
     const data = await res.json();
     if (data.success) {
       if (data.transferred > 0) {
-        showToast(`${data.transferred} máquina(s) pendente(s) puxadas de ${formatDateBR(prevDate)}!`, 'success');
+        showToast(`${data.transferred} máquina(s) puxadas de ${formatDateBR(prevDate)}!`, 'success');
       } else {
-        showToast(`Nenhuma máquina pendente nova encontrada em ${formatDateBR(prevDate)}.`, 'info');
+        showToast(`Nenhuma pendência nova em ${formatDateBR(prevDate)}.`, 'info');
       }
       loadRecords();
     } else {
@@ -760,20 +864,6 @@ async function handleQuickRollover() {
   }
 }
 
-// Gerar dados de teste (Seed)
-async function handleSeedDemo() {
-  try {
-    const res = await fetch('/api/seed', { method: 'POST' });
-    const data = await res.json();
-    if (data.success) {
-      showToast('Dados de exemplo gerados com tipos de matéria e etapas!', 'success');
-      loadRecords();
-    }
-  } catch (err) {
-    console.error(err);
-  }
-}
-
 // Modal de Histórico
 async function openHistoryModal() {
   const modal = document.getElementById('historyModal');
@@ -782,7 +872,7 @@ async function openHistoryModal() {
   modal.classList.remove('hidden');
 
   try {
-    const res = await fetch('/api/history');
+    const res = await fetch('/api/history', { headers: getAuthHeaders() });
     const data = await res.json();
 
     if (data.success && data.history.length > 0) {

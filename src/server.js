@@ -11,7 +11,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Helper para obter a data atual no formato YYYY-MM-DD no fuso local
+// Helper para obter código do operador da requisição
+function getOperator(req) {
+  return (req.headers['x-operator-code'] || req.body?.operatorCode || req.query?.operatorCode || 'ANÔNIMO').toString().trim().toUpperCase();
+}
+
+// Helper para data local
 function getTodayDateString() {
   const now = new Date();
   const year = now.getFullYear();
@@ -44,11 +49,12 @@ app.get('/api/records', async (req, res) => {
   }
 });
 
-// 2. Adicionar nova máquina/registro
+// 2. Adicionar nova máquina/registro com código do operador
 app.post('/api/records', async (req, res) => {
   try {
     const { date, maq, mat, tipoMat, diam, loc, obs, tirada, encostada, carregada } = req.body;
     const targetDate = date || getTodayDateString();
+    const operator = getOperator(req);
 
     if (!maq || !maq.trim()) {
       return res.status(400).json({ success: false, error: 'O campo Máquina (MAQ) é obrigatório.' });
@@ -64,7 +70,7 @@ app.post('/api/records', async (req, res) => {
       tirada: !!tirada,
       encostada: !!encostada,
       carregada: !!carregada
-    });
+    }, operator);
 
     const summary = await storage.getSummary(targetDate);
     res.status(201).json({ success: true, record: created, summary });
@@ -80,8 +86,9 @@ app.put('/api/records/:id', async (req, res) => {
     const { id } = req.params;
     const { date, ...updates } = req.body;
     const targetDate = date || getTodayDateString();
+    const operator = getOperator(req);
 
-    const updated = await storage.updateRecord(targetDate, id, updates);
+    const updated = await storage.updateRecord(targetDate, id, updates, operator);
     const summary = await storage.getSummary(targetDate);
 
     res.json({ success: true, record: updated, summary });
@@ -91,33 +98,19 @@ app.put('/api/records/:id', async (req, res) => {
   }
 });
 
-// 4. Alternar status rápidos (tirada, encostada, carregada) com 1 clique
+// 4. Alternar status rápidos com gravação de operador (tirada, encostada, carregada)
 app.patch('/api/records/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
     const { date, field, value } = req.body;
     const targetDate = date || getTodayDateString();
+    const operator = getOperator(req);
 
     if (!['tirada', 'encostada', 'carregada'].includes(field)) {
       return res.status(400).json({ success: false, error: 'Campo de status inválido.' });
     }
 
-    // Se marcar como carregada = true, automaticamente marca tirada = true e encostada = true
-    const updates = { [field]: Boolean(value) };
-    if (field === 'carregada' && value) {
-      updates.tirada = true;
-      updates.encostada = true;
-    } else if (field === 'encostada' && value) {
-      updates.tirada = true;
-    } else if (field === 'tirada' && !value) {
-      // Se desmarcar tirada, remove encostada e carregada
-      updates.encostada = false;
-      updates.carregada = false;
-    } else if (field === 'encostada' && !value) {
-      updates.carregada = false;
-    }
-
-    const updated = await storage.updateRecord(targetDate, id, updates);
+    const updated = await storage.updateStatusStep(targetDate, id, field, value, operator);
     const summary = await storage.getSummary(targetDate);
 
     res.json({ success: true, record: updated, summary });
@@ -133,8 +126,9 @@ app.delete('/api/records/:id', async (req, res) => {
     const { id } = req.params;
     const { date } = req.query;
     const targetDate = date || getTodayDateString();
+    const operator = getOperator(req);
 
-    await storage.deleteRecord(targetDate, id);
+    await storage.deleteRecord(targetDate, id, operator);
     const summary = await storage.getSummary(targetDate);
 
     res.json({ success: true, id, summary });
@@ -148,11 +142,13 @@ app.delete('/api/records/:id', async (req, res) => {
 app.post('/api/rollover', async (req, res) => {
   try {
     const { sourceDate, targetDate } = req.body;
+    const operator = getOperator(req);
+
     if (!sourceDate || !targetDate) {
       return res.status(400).json({ success: false, error: 'Datas de origem e destino são obrigatórias.' });
     }
 
-    const result = await storage.manualRollover(sourceDate, targetDate);
+    const result = await storage.manualRollover(sourceDate, targetDate, operator);
     const summary = await storage.getSummary(targetDate);
 
     res.json({ success: true, ...result, summary });
@@ -187,84 +183,24 @@ app.get('/api/export/json', async (req, res) => {
   }
 });
 
-// 9. Exportar dia em CSV
+// 9. Exportar dia em CSV com colunas de operadores
 app.get('/api/export/csv', async (req, res) => {
   try {
     const date = req.query.date || getTodayDateString();
     const data = await storage.getDayRecords(date, false);
     
-    // Monta CSV no padrão Excel com separador ponto e vírgula
-    let csv = '\uFEFF'; // BOM para suporte a acentos no Excel
-    csv += 'MAQ;MAT;TIPO_MAT;DIAM;LOC;OBS;TIRADA;ENCOSTADA;CARREGADA;TRANSITADO_DE\n';
+    let csv = '\uFEFF';
+    csv += 'MAQ;MAT;TIPO_MAT;DIAM;LOC;OBS;TIRADA;TIRADA_POR;ENCOSTADA;ENCOSTADA_POR;CARREGADA;CARREGADA_POR;CRIADO_POR;ATUALIZADO_POR;TRANSITADO_DE\n';
 
     data.records.forEach(r => {
       const escape = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
-      csv += `${escape(r.maq)};${escape(r.mat)};${escape(r.tipoMat || 'Melhorada')};${escape(r.diam)};${escape(r.loc)};${escape(r.obs)};${r.tirada ? 'SIM' : 'NÃO'};${r.encostada ? 'SIM' : 'NÃO'};${r.carregada ? 'SIM' : 'NÃO'};${escape(r.origemData || '')}\n`;
+      csv += `${escape(r.maq)};${escape(r.mat)};${escape(r.tipoMat || 'Melhorada')};${escape(r.diam)};${escape(r.loc)};${escape(r.obs)};${r.tirada ? 'SIM' : 'NÃO'};${escape(r.tiradaPor || '')};${r.encostada ? 'SIM' : 'NÃO'};${escape(r.encostadaPor || '')};${r.carregada ? 'SIM' : 'NÃO'};${escape(r.carregadaPor || '')};${escape(r.criadoPor || '')};${escape(r.atualizadoPor || '')};${escape(r.origemData || '')}\n`;
     });
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="controle-materia-${date}.csv"`);
     res.send(csv);
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// 10. Iniciar com dados de exemplo (Seed inicial)
-app.post('/api/seed', async (req, res) => {
-  try {
-    const today = getTodayDateString();
-    const yesterday = storage.getPreviousDate(today);
-
-    // Registros no dia de ontem
-    await storage.addRecord(yesterday, {
-      maq: 'TORNO CNC 01',
-      mat: 'AÇO INOX 304',
-      tipoMat: 'Melhorada+',
-      diam: 'Ø 50mm',
-      loc: 'GALPÃO A - SETOR 2',
-      obs: 'Tudo concluído e carregado.',
-      tirada: true,
-      encostada: true,
-      carregada: true
-    });
-
-    await storage.addRecord(yesterday, {
-      maq: 'FRESA INDUSTRIAL 02',
-      mat: 'ALUMÍNIO 6061-T6',
-      tipoMat: 'Melhorada',
-      diam: 'Ø 75mm',
-      loc: 'GALPÃO B - BANCADA 4',
-      obs: 'Matéria já está encostada na máquina, aguardando término de setup.',
-      tirada: true,
-      encostada: true,
-      carregada: false
-    });
-
-    await storage.addRecord(yesterday, {
-      maq: 'SERRA DE FITA 03',
-      mat: 'AÇO 1045 TREFILADO',
-      tipoMat: 'Melhorada+',
-      diam: 'Ø 120mm',
-      loc: 'ALMOXARIFADO CENTRAL',
-      obs: 'Matéria foi tirada do almoxarifado, aguardando transporte.',
-      tirada: true,
-      encostada: false,
-      carregada: false
-    });
-
-    // Ao chamar getDayRecords de hoje, ele automaticamente traz as 2 pendentes do dia anterior!
-    const todayData = await storage.getDayRecords(today, true);
-
-    res.json({
-      success: true,
-      message: 'Dados de demonstração inseridos no Neon Postgres com sucesso!',
-      todayDate: today,
-      yesterdayDate: yesterday,
-      todayRecords: todayData.records
-    });
-  } catch (err) {
-    console.error('Erro em POST /api/seed:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

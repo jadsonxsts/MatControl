@@ -10,7 +10,7 @@ if (!connectionString) {
 const sql = neon(connectionString);
 
 /**
- * Criação automática da tabela no Neon Postgres
+ * Criação e migração automática da tabela no Neon Postgres
  */
 async function initDB() {
   try {
@@ -30,10 +30,28 @@ async function initDB() {
         origem_id UUID,
         origem_data VARCHAR(10),
         transferido BOOLEAN DEFAULT FALSE,
+        criado_por VARCHAR(100),
+        atualizado_por VARCHAR(100),
+        tirada_por VARCHAR(100),
+        encostada_por VARCHAR(100),
+        carregada_por VARCHAR(100),
+        tirada_em TIMESTAMPTZ,
+        encostada_em TIMESTAMPTZ,
+        carregada_em TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `;
+
+    // Garante que colunas de operador existam caso a tabela já tenha sido criada anteriormente
+    await sql`ALTER TABLE records ADD COLUMN IF NOT EXISTS criado_por VARCHAR(100);`;
+    await sql`ALTER TABLE records ADD COLUMN IF NOT EXISTS atualizado_por VARCHAR(100);`;
+    await sql`ALTER TABLE records ADD COLUMN IF NOT EXISTS tirada_por VARCHAR(100);`;
+    await sql`ALTER TABLE records ADD COLUMN IF NOT EXISTS encostada_por VARCHAR(100);`;
+    await sql`ALTER TABLE records ADD COLUMN IF NOT EXISTS carregada_por VARCHAR(100);`;
+    await sql`ALTER TABLE records ADD COLUMN IF NOT EXISTS tirada_em TIMESTAMPTZ;`;
+    await sql`ALTER TABLE records ADD COLUMN IF NOT EXISTS encostada_em TIMESTAMPTZ;`;
+    await sql`ALTER TABLE records ADD COLUMN IF NOT EXISTS carregada_em TIMESTAMPTZ;`;
 
     await sql`
       CREATE INDEX IF NOT EXISTS idx_records_data ON records(data_registro);

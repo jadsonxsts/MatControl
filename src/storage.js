@@ -1,6 +1,4 @@
 require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
 const { sql, initDB } = require('./db');
 
 function getOffsetDate(dateStr, dayOffset) {
@@ -31,6 +29,14 @@ function mapRow(r) {
     origemId: r.origem_id || null,
     origemData: r.origem_data || null,
     transferido: Boolean(r.transferido),
+    criadoPor: r.criado_por || null,
+    atualizadoPor: r.atualizado_por || null,
+    tiradaPor: r.tirada_por || null,
+    encostadaPor: r.encostada_por || null,
+    carregadaPor: r.carregada_por || null,
+    tiradaEm: r.tirada_em || null,
+    encostadaEm: r.encostada_em || null,
+    carregadaEm: r.carregada_em || null,
     createdAt: r.created_at,
     updatedAt: r.updated_at
   };
@@ -120,12 +126,17 @@ async function applyAutoRollover(targetDate) {
       await sql`
         INSERT INTO records (
           data_registro, maq, mat, tipo_mat, diam, loc, obs, 
-          tirada, encostada, carregada, origem_id, origem_data, transferido
+          tirada, encostada, carregada, origem_id, origem_data, transferido,
+          criado_por, atualizado_por, tirada_por, encostada_por,
+          tirada_em, encostada_em
         ) VALUES (
           ${targetDate}, ${pending.maq}, ${pending.mat}, ${pending.tipo_mat || 'Melhorada'},
           ${pending.diam}, ${pending.loc}, ${pending.obs},
           ${Boolean(pending.tirada)}, ${Boolean(pending.encostada)}, FALSE,
-          ${pending.id}, ${prevDate}, TRUE
+          ${pending.id}, ${prevDate}, TRUE,
+          ${pending.criado_por || 'SISTEMA'}, ${pending.atualizado_por || 'SISTEMA'},
+          ${pending.tirada_por || null}, ${pending.encostada_por || null},
+          ${pending.tirada_em || null}, ${pending.encostada_em || null}
         )
       `;
       added++;
@@ -138,7 +149,7 @@ async function applyAutoRollover(targetDate) {
 /**
  * Transfere manualmente pendências de uma data de origem para destino
  */
-async function manualRollover(sourceDate, targetDate) {
+async function manualRollover(sourceDate, targetDate, operatorCode = 'SISTEMA') {
   await initDB();
 
   // Ao puxar manualmente, limpa os descartados para permitir repuxar
@@ -166,12 +177,17 @@ async function manualRollover(sourceDate, targetDate) {
       await sql`
         INSERT INTO records (
           data_registro, maq, mat, tipo_mat, diam, loc, obs, 
-          tirada, encostada, carregada, origem_id, origem_data, transferido
+          tirada, encostada, carregada, origem_id, origem_data, transferido,
+          criado_por, atualizado_por, tirada_por, encostada_por,
+          tirada_em, encostada_em
         ) VALUES (
           ${targetDate}, ${item.maq}, ${item.mat}, ${item.tipo_mat || 'Melhorada'},
           ${item.diam}, ${item.loc}, ${item.obs},
           ${Boolean(item.tirada)}, ${Boolean(item.encostada)}, FALSE,
-          ${item.id}, ${sourceDate}, TRUE
+          ${item.id}, ${sourceDate}, TRUE,
+          ${operatorCode}, ${operatorCode},
+          ${item.tirada_por || null}, ${item.encostada_por || null},
+          ${item.tirada_em || null}, ${item.encostada_em || null}
         )
       `;
       count++;
@@ -186,21 +202,33 @@ async function manualRollover(sourceDate, targetDate) {
 }
 
 /**
- * Adiciona um novo registro no banco Neon
+ * Adiciona um novo registro no banco Neon com código do operador
  */
-async function addRecord(dateStr, data) {
+async function addRecord(dateStr, data, operatorCode = 'ANÔNIMO') {
   await initDB();
+
+  const op = (operatorCode || 'ANÔNIMO').trim().toUpperCase();
 
   const rows = await sql`
     INSERT INTO records (
       data_registro, maq, mat, tipo_mat, diam, loc, obs,
-      tirada, encostada, carregada, origem_id, origem_data, transferido
+      tirada, encostada, carregada, origem_id, origem_data, transferido,
+      criado_por, atualizado_por,
+      tirada_por, encostada_por, carregada_por,
+      tirada_em, encostada_em, carregada_em
     ) VALUES (
       ${dateStr}, ${(data.maq || '').trim()}, ${(data.mat || '').trim()},
       ${(data.tipoMat || 'Melhorada').trim()}, ${(data.diam || '').trim()},
       ${(data.loc || '').trim()}, ${(data.obs || '').trim()},
       ${Boolean(data.tirada)}, ${Boolean(data.encostada)}, ${Boolean(data.carregada)},
-      ${data.origemId || null}, ${data.origemData || null}, ${Boolean(data.transferido)}
+      ${data.origemId || null}, ${data.origemData || null}, ${Boolean(data.transferido)},
+      ${op}, ${op},
+      ${data.tirada ? op : null},
+      ${data.encostada ? op : null},
+      ${data.carregada ? op : null},
+      ${data.tirada ? new Date() : null},
+      ${data.encostada ? new Date() : null},
+      ${data.carregada ? new Date() : null}
     )
     RETURNING *
   `;
@@ -211,10 +239,11 @@ async function addRecord(dateStr, data) {
 /**
  * Atualiza um registro existente no banco Neon
  */
-async function updateRecord(dateStr, id, updates) {
+async function updateRecord(dateStr, id, updates, operatorCode = 'ANÔNIMO') {
   await initDB();
 
-  // Busca o registro atual
+  const op = (operatorCode || 'ANÔNIMO').trim().toUpperCase();
+
   const existing = await sql`
     SELECT * FROM records WHERE id = ${id}
   `;
@@ -231,9 +260,19 @@ async function updateRecord(dateStr, id, updates) {
   const diam = updates.diam !== undefined ? updates.diam.trim() : current.diam;
   const loc = updates.loc !== undefined ? updates.loc.trim() : current.loc;
   const obs = updates.obs !== undefined ? updates.obs.trim() : current.obs;
+  
   const tirada = updates.tirada !== undefined ? Boolean(updates.tirada) : current.tirada;
   const encostada = updates.encostada !== undefined ? Boolean(updates.encostada) : current.encostada;
   const carregada = updates.carregada !== undefined ? Boolean(updates.carregada) : current.carregada;
+
+  const tiradaPor = tirada ? (current.tirada ? current.tirada_por : op) : null;
+  const tiradaEm = tirada ? (current.tirada ? current.tirada_em : new Date()) : null;
+
+  const encostadaPor = encostada ? (current.encostada ? current.encostada_por : op) : null;
+  const encostadaEm = encostada ? (current.encostada ? current.encostada_em : new Date()) : null;
+
+  const carregadaPor = carregada ? (current.carregada ? current.carregada_por : op) : null;
+  const carregadaEm = carregada ? (current.carregada ? current.carregada_em : new Date()) : null;
 
   const rows = await sql`
     UPDATE records 
@@ -247,6 +286,13 @@ async function updateRecord(dateStr, id, updates) {
       tirada = ${tirada},
       encostada = ${encostada},
       carregada = ${carregada},
+      tirada_por = ${tiradaPor},
+      tirada_em = ${tiradaEm},
+      encostada_por = ${encostadaPor},
+      encostada_em = ${encostadaEm},
+      carregada_por = ${carregadaPor},
+      carregada_em = ${carregadaEm},
+      atualizado_por = ${op},
       updated_at = NOW()
     WHERE id = ${id}
     RETURNING *
@@ -256,12 +302,103 @@ async function updateRecord(dateStr, id, updates) {
 }
 
 /**
- * Remove um registro
+ * Alterna status individual (tirada, encostada, carregada) gravando o operador
  */
-async function deleteRecord(dateStr, id) {
+async function updateStatusStep(dateStr, id, field, value, operatorCode = 'ANÔNIMO') {
   await initDB();
 
-  // 1. Busca os dados do registro antes de deletar
+  const op = (operatorCode || 'ANÔNIMO').trim().toUpperCase();
+
+  const existing = await sql`SELECT * FROM records WHERE id = ${id}`;
+  if (existing.length === 0) throw new Error('Registro não encontrado');
+  const current = existing[0];
+
+  let tirada = current.tirada;
+  let encostada = current.encostada;
+  let carregada = current.carregada;
+
+  let tiradaPor = current.tirada_por;
+  let tiradaEm = current.tirada_em;
+  let encostadaPor = current.encostada_por;
+  let encostadaEm = current.encostada_em;
+  let carregadaPor = current.carregada_por;
+  let carregadaEm = current.carregada_em;
+
+  const boolVal = Boolean(value);
+
+  if (field === 'carregada') {
+    carregada = boolVal;
+    if (boolVal) {
+      carregadaPor = op;
+      carregadaEm = new Date();
+      tirada = true;
+      if (!tiradaPor) { tiradaPor = op; tiradaEm = new Date(); }
+      encostada = true;
+      if (!encostadaPor) { encostadaPor = op; encostadaEm = new Date(); }
+    } else {
+      carregadaPor = null;
+      carregadaEm = null;
+    }
+  } else if (field === 'encostada') {
+    encostada = boolVal;
+    if (boolVal) {
+      encostadaPor = op;
+      encostadaEm = new Date();
+      tirada = true;
+      if (!tiradaPor) { tiradaPor = op; tiradaEm = new Date(); }
+    } else {
+      encostadaPor = null;
+      encostadaEm = null;
+      carregada = false;
+      carregadaPor = null;
+      carregadaEm = null;
+    }
+  } else if (field === 'tirada') {
+    tirada = boolVal;
+    if (boolVal) {
+      tiradaPor = op;
+      tiradaEm = new Date();
+    } else {
+      tiradaPor = null;
+      tiradaEm = null;
+      encostada = false;
+      encostadaPor = null;
+      encostadaEm = null;
+      carregada = false;
+      carregadaPor = null;
+      carregadaEm = null;
+    }
+  }
+
+  const rows = await sql`
+    UPDATE records 
+    SET 
+      tirada = ${tirada},
+      encostada = ${encostada},
+      carregada = ${carregada},
+      tirada_por = ${tiradaPor},
+      tirada_em = ${tiradaEm},
+      encostada_por = ${encostadaPor},
+      encostada_em = ${encostadaEm},
+      carregada_por = ${carregadaPor},
+      carregada_em = ${carregadaEm},
+      atualizado_por = ${op},
+      updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING *
+  `;
+
+  return mapRow(rows[0]);
+}
+
+/**
+ * Remove um registro gravando na tabela de descartados para não reaparecer
+ */
+async function deleteRecord(dateStr, id, operatorCode = 'ANÔNIMO') {
+  await initDB();
+
+  const op = (operatorCode || 'ANÔNIMO').trim().toUpperCase();
+
   const existing = await sql`
     SELECT id, data_registro, maq, origem_id FROM records WHERE id = ${id}
   `;
@@ -271,15 +408,13 @@ async function deleteRecord(dateStr, id) {
   }
 
   const item = existing[0];
-
-  // 2. Registra na tabela de descartados para não reaparecer no rollover automático
   const targetOrigemId = item.origem_id || item.id;
+
   await sql`
     INSERT INTO dismissed_rollovers (data_registro, origem_id, maq)
     VALUES (${dateStr}, ${targetOrigemId}, ${item.maq})
   `;
 
-  // 3. Deleta da tabela records
   const rows = await sql`
     DELETE FROM records WHERE id = ${id} RETURNING id
   `;
@@ -332,7 +467,7 @@ async function exportFullDB() {
   `;
 
   const dbFormatted = {
-    version: 2,
+    version: 3,
     provider: 'Neon PostgreSQL',
     updatedAt: new Date().toISOString(),
     records: {}
@@ -353,6 +488,7 @@ module.exports = {
   getDayRecords,
   addRecord,
   updateRecord,
+  updateStatusStep,
   deleteRecord,
   manualRollover,
   getSummary,
