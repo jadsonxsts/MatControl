@@ -57,6 +57,11 @@ function setOperator(code) {
   if (displayEl) {
     displayEl.textContent = state.operatorCode;
   }
+
+  const navOperatorLabel = document.getElementById('navOperatorLabel');
+  if (navOperatorLabel) {
+    navOperatorLabel.textContent = state.operatorCode ? state.operatorCode.substring(0, 7) : 'Operador';
+  }
 }
 
 function openLoginModal() {
@@ -82,6 +87,46 @@ function getAuthHeaders() {
 
 // Configuração de ouvintes de eventos
 function setupEventListeners() {
+  // Mobile Bottom Navigation Buttons
+  const navDashboard = document.getElementById('navItemDashboard');
+  if (navDashboard) {
+    navDashboard.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      highlightBottomNav('navItemDashboard');
+    });
+  }
+
+  const navHistory = document.getElementById('navItemHistory');
+  if (navHistory) {
+    navHistory.addEventListener('click', () => {
+      openHistoryModal();
+      highlightBottomNav('navItemHistory');
+    });
+  }
+
+  const navAdd = document.getElementById('navItemAddMachine');
+  if (navAdd) {
+    navAdd.addEventListener('click', () => {
+      openAddModal();
+    });
+  }
+
+  const navOperator = document.getElementById('navItemOperator');
+  if (navOperator) {
+    navOperator.addEventListener('click', () => {
+      openLoginModal();
+      highlightBottomNav('navItemOperator');
+    });
+  }
+
+  const navMore = document.getElementById('navItemMore');
+  if (navMore) {
+    navMore.addEventListener('click', () => {
+      openExportModal();
+      highlightBottomNav('navItemMore');
+    });
+  }
+
   // Login Form
   document.getElementById('loginForm').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -203,6 +248,20 @@ function setupEventListeners() {
       closeExportModal();
     }
   });
+}
+
+// Helper para destacar botão ativo na navegação inferior móvel
+function highlightBottomNav(activeId) {
+  document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+    btn.classList.remove('active', 'text-teal-400');
+    btn.classList.add('text-slate-400');
+  });
+
+  const activeBtn = document.getElementById(activeId);
+  if (activeBtn) {
+    activeBtn.classList.add('active', 'text-teal-400');
+    activeBtn.classList.remove('text-slate-400');
+  }
 }
 
 // Altera a data atual com deslocamento de dias

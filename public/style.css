@@ -1,4 +1,4 @@
-/* Custom styles and print optimizations */
+/* Custom styles, mobile dock navigation, and print optimizations */
 
 /* Hide scrollbar for clean horizontal filter scrolling on mobile */
 .no-scrollbar::-webkit-scrollbar {
@@ -30,7 +30,7 @@
 
 /* Row & Card animations */
 .table-row-item, .mobile-machine-card {
-  transition: all 0.2s ease-in-out;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .table-row-item:hover {
@@ -38,11 +38,11 @@
 }
 
 .table-row-item.is-carregada, .mobile-machine-card.is-carregada {
-  border-left: 3px solid #14b8a6;
+  border-left: 3.5px solid #14b8a6;
 }
 
 .table-row-item.is-pendente, .mobile-machine-card.is-pendente {
-  border-left: 3px solid #f59e0b;
+  border-left: 3.5px solid #f59e0b;
 }
 
 /* Badges for Material Type */
@@ -53,9 +53,9 @@
 }
 
 .badge-melhorada-plus {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(234, 179, 8, 0.15));
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(234, 179, 8, 0.15));
   color: #fde047;
-  border: 1px solid rgba(245, 158, 11, 0.5);
+  border: 1px solid rgba(245, 158, 11, 0.6);
   box-shadow: 0 0 10px rgba(245, 158, 11, 0.15);
 }
 
@@ -96,6 +96,41 @@
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Mobile Bottom Navigation Bar Styles */
+.mobile-nav-btn {
+  min-width: 58px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.mobile-nav-btn.active {
+  color: #2dd4bf !important;
+}
+
+.mobile-nav-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0px;
+  width: 14px;
+  height: 3px;
+  background-color: #2dd4bf;
+  border-radius: 9999px;
+  box-shadow: 0 0 8px rgba(45, 212, 191, 0.8);
+}
+
+.mobile-fab-btn {
+  width: 54px;
+  height: 54px;
+  box-shadow: 0 8px 20px -2px rgba(20, 184, 166, 0.5), 0 0 15px rgba(20, 184, 166, 0.3);
+}
+
+/* Safe area for iOS Home indicator */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  #mobileBottomNav {
+    padding-bottom: max(0.25rem, env(safe-area-inset-bottom));
+  }
+}
+
 /* Touch-friendly buttons on mobile */
 @media (max-width: 640px) {
   button, input, select {
@@ -104,7 +139,7 @@
   
   .filter-btn {
     font-size: 11px;
-    padding: 6px 10px;
+    padding: 6px 11px;
   }
 }
 
@@ -115,7 +150,7 @@
     color: #000000 !important;
   }
 
-  header, footer, #rolloverNotice, .filter-btn, #searchInput, #btnExportMenu, #btnOpenHistory, #btnOpenAddModal, #btnQuickRollover, #btnSeedDemo, .actions-col, #toastContainer, #mobileCardsContainer {
+  header, footer, #mobileBottomNav, #rolloverNotice, .filter-btn, #searchInput, #btnExportMenu, #btnOpenHistory, #btnOpenAddModal, #btnQuickRollover, .actions-col, #toastContainer, #mobileCardsContainer {
     display: none !important;
   }
 
